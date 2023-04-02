@@ -28,8 +28,10 @@ class GameBoard:
         self.board[3][3], self.board[4][4] = 1, 1
         self.board[3][4], self.board[4][3] = -1, -1
         self.reward_map = np.zeros((8, 8), dtype=int)
-        self.reward_map[2:6, 2:6] = 1
-        self.reward_map[1:7, 1:7] = -1
+        self.reward_map[2, 3], self.reward_map[2, 4] = -1, 1
+        self.reward_map[3, 2], self.reward_map[3, 5] = -1, 1
+        self.reward_map[4, 2], self.reward_map[4, 5] = 1, -1
+        self.reward_map[5, 3], self.reward_map[5, 4] = 1, -1
 
         self.action_vectors = {
             0: (-1, -1),  # UP_LEFT,
@@ -60,9 +62,10 @@ class GameBoard:
 
     def actions(self, color):
         if color > 0:
-            return np.where(self.reward_map > 0)
+            actions = np.where(self.reward_map > 0)
         else:
-            return np.where(self.reward_map < 0)
+            actions = np.where(self.reward_map < 0)
+        return [(actions[0][i], actions[1][i]) for i in range(len(actions[0]))]
 
     def states(self):
         return self.turn, self.actions(self.turn)
@@ -74,8 +77,11 @@ class GameBoard:
         self.board = np.zeros((8, 8), dtype=int)
         self.board[3][3], self.board[4][4] = 1, 1
         self.board[3][4], self.board[4][3] = -1, -1
-        self.reward_map[2:6, 2:6] = 1
-        self.reward_map[1:7, 1:7] = -1
+        self.reward_map = np.zeros((8, 8), dtype=int)
+        self.reward_map[2, 3], self.reward_map[2, 4] = -1, 1
+        self.reward_map[3, 2], self.reward_map[3, 5] = -1, 1
+        self.reward_map[4, 2], self.reward_map[4, 5] = 1, -1
+        self.reward_map[5, 3], self.reward_map[5, 4] = 1, -1
 
     # return next_state, reward, done
     def step(self, action: int):
@@ -119,14 +125,14 @@ class GameBoard:
                 if row < 0 or row > 7 or col < 0 or col > 7:
                     break
                 searched = self.board[(row, col)]
-                if searched == color:
+                if searched == 0 or searched == color:
                     break
                 to_flipped.append((row, col))
         return to_flipped
 
     def update_reward(self, row, col, color):
         self.reward_map[row, col] = 0
-        for vec in self.action_vectors.values:
+        for vec in self.action_vectors.values():
             neigher_row = row + vec[0]
             neigher_col = col + vec[1]
             to_filpped = self.search(neigher_row, neigher_col, color)
@@ -143,13 +149,11 @@ class GameBoard:
         board_display = [[x for x in row] for row in self.board]
 
         self.ax.cla()
-        self.ax.set_xticks(np.arange(0.5, 8.5, 1))
-        self.ax.set_yticks(np.arange(0.5, 8.5, 1))
+        self.ax.set_xticks(range(len(self.board)))
+        self.ax.set_yticks(range(len(self.board[0])))
         self.ax.grid(True, which='both')
-        self.ax.imshow(board_display, cmap=cmap,
+        self.ax.imshow(board_display, cmap=cmap, extent=[0, 8, 0, 8],
                        norm=norm, interpolation='none')
-        self.ax.set_xticklabels([])
-        self.ax.set_yticklabels([])
         plt.show()
 
     def render_v(self):
