@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
+from collections import deque
 
 
 @dataclass
@@ -7,6 +8,7 @@ class State:
     board: np.ndarray
     reward_map: np.ndarray
     color: int
+    memory = deque(maxlen=5)
 
     @property
     def height(self):
@@ -27,10 +29,16 @@ class State:
         if all(n == 1 for n in nonzero_elements) or all(n == -1 for n in nonzero_elements):
             True
         return False
-    
+
     def legal_hands(self):
         if self.color > 0:
             hands = np.where(self.reward_map > 0)
         else:
             hands = np.where(self.reward_map < 0)
         return [(hands[0][i], hands[1][i]) for i in range(len(hands[0]))]
+
+    def legal_actions(self):
+        return [8*h[0] + h[1] for h in self.legal_hands()]
+
+    def save(self, action: int):
+        self.memory.append(action)
