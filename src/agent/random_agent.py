@@ -5,7 +5,7 @@ if '__file__' in globals():
 from collections import defaultdict
 from env.gameboard import GameBoard
 from agent.simple_agent import SimpleAgent
-from typing import List, Tuple, Dict
+from common.state import State
 
 
 class RandomAgent(SimpleAgent):
@@ -15,20 +15,21 @@ class RandomAgent(SimpleAgent):
     def reset(self):
         pass
 
-    def get_action(self, state: Tuple[int, List[Tuple[int, int]]]):
-        if state[0] != self.color:
+    def get_action(self, state: State):
+        if state.color != self.color:
             return None
-        if len(state[1]) == 0:
+        legal_hands = state.legal_hands()
+        if len(legal_hands) == 0:
             return None
-        p = 1/len(state[1])
-        return {s[0] * 8 + s[1]: p for s in state[1]}
+        p = 1/len(legal_hands)
+        return {s[0] * 8 + s[1]: p for s in legal_hands}
 
     def step(self, observation, reward, done):
         pass
 
 # predict one step
 def eval_onestep(agent: RandomAgent, V, env: GameBoard, gamma=0.9):
-    state = env.states()
+    state = env.reset()
     action_probs = agent.get_action(state)
     new_V = 0
 
@@ -38,6 +39,7 @@ def eval_onestep(agent: RandomAgent, V, env: GameBoard, gamma=0.9):
 
     V[state] = new_V
     return V
+
 
 def policy_eval(agent: RandomAgent, V, env: GameBoard, gamma, threshold=0.001):
     while True:
@@ -50,10 +52,10 @@ def policy_eval(agent: RandomAgent, V, env: GameBoard, gamma, threshold=0.001):
             t = abs(V[state] - old_V[state])
             if delta < t:
                 delta = t
-        
+
         if delta < threshold:
             break
-    
+
     return V
 
 
