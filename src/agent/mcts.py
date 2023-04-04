@@ -12,6 +12,7 @@ class Node:
         self.n = 0
         self.q = 0.0
 
+    # evaluate board state with rate of win
     def select_child(self, c=1.4):
         best_score = -float('inf')
         best_child = None
@@ -24,55 +25,45 @@ class Node:
 
     def rollout(self, env: GameBoard):
         state = self.state
-        done = False
-        while not done:
-            actions = self.state.legal_actions()
-            action = np.random.choice(actions)
-            state, reward, done = env.step(state, action)
-        return reward
-    
-    def simulate(self, env: GameBoard):
-      node = self
-      done = False
-      while not done:
-          if not node.children:
-              action = np.random.choice(node.state.legal_actions())
-              next_state, reward, done = env.step(node.state, action)
-              child_node = Node(next_state, node)
-              node.children.append(child_node)
-              return reward
-          else:
-              node = node.select_child()
-              _, reward, done = env.step(node.state, node.state.last_action)
-      return reward
+        self.n += 1
+        if state.is_done():
+            if state.is_win(state.color):
+                self.q += 1
+                return 1
+            else:
+                return 0
+
+        actions = self.state.legal_actions()
+        if len(actions):
+            for action in actions:
+                next_state, _, _ = env.step(state, action)
+                child = Node(next_state, self)
+                self.children.append(child)
+
+        child: Node = np.random.choice(self.children)
+        result = child.rollout()
+        if result == 0:
+            self.q += 1
+            return 1
+        else:
+            return 0
+
 
 class MCTS:
     def __init__(self, state: State, env: GameBoard) -> None:
-        self.max_depth = 5
         self.root = Node(state)
         self.env = env
 
-    def extend(self):
-        self.extend_recusive(self.root, 0)
-    
-    def extend_recusive(self, node: Node, depth: int):
-        if depth == self.max_depth:
-            return
-        
-        actions = node.state.legal_actions()
-        for action in actions:
-            next_state, reward, done = self.env.step(node, action)
-            if done:
-                return
-            node.children.append(Node(next_state, node))
-        
-        depth =+ 1
-        for child in node.children:
-            self.extend_recusive(child, depth)
-    
-    def proceed(self):
+    def simulate(self, env: GameBoard):
         pass
-    
-    def evaluate(self):
-        pass
-    
+
+    # input state is owned by opponent
+    def proceed(self, state):
+        current_node: Node = None
+        for child in self.root.children:
+            if child.state == state:
+                current_node == child
+
+        next_root = current_node.select_child()
+        self.root = next_root
+        return next_root.state
