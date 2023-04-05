@@ -23,39 +23,49 @@ class Node:
                 best_child = child
         return best_child
 
-    def rollout(self, env: GameBoard):
+    def greedy_probs(self, epsilon: float):
+        best_child = self.select_child()
+        base_prob = epsilon / len(self.children)
+        select_probs = {action: base_prob for action in self.children}
+        select_probs[best_child] += (1 - epsilon)
+        return select_probs
+
+    def rollout(self, env: GameBoard, epsilon: float):
         state = self.state
         self.n += 1
         if state.is_done():
-            if state.is_win(state.color):
-                self.q += 1
-                return 1
-            else:
-                return 0
+            return self
 
         actions = self.state.legal_actions()
-        if len(actions):
+        if len(self.children) == 0 and len(actions) > 0:
             for action in actions:
                 next_state, _, _ = env.step(state, action)
                 child = Node(next_state, self)
                 self.children.append(child)
 
-        child: Node = np.random.choice(self.children)
-        result = child.rollout()
-        if result == 0:
-            self.q += 1
-            return 1
-        else:
-            return 0
+        child: Node = np.random.choice(
+            self.children, self.greedy_probs(epsilon).values())
+        return child.rollout(env, epsilon)
+
+    def backpropagete(self, color):
+        node = self
+        while node is not None:
+            if node.state.is_win(color):
+                node.q += 1
+            node = node.parent
 
 
 class MCTS:
     def __init__(self, state: State, env: GameBoard) -> None:
         self.root = Node(state)
         self.env = env
+        self.epsilon = 0.1
+        self.episode = 1024
 
-    def simulate(self, env: GameBoard):
-        pass
+    def simulate(self):
+        for _ in range(self.episode):
+            edge = self.root.rollout(self.env, self.epsilon)
+            edge.backpropagete(self.root.state.color)
 
     # input state is owned by opponent
     def proceed(self, state):

@@ -22,6 +22,9 @@ class State:
     def shape(self):
         return self.reward_map.shape
 
+    def is_win(self, color) -> bool:
+        return np.count_nonzero(self.board == color) > np.count_nonzero(self.board == - color)
+
     def is_done(self) -> bool:
         nonzero_elements = self.board[self.board != 0]
         if len(nonzero_elements) == 0:
