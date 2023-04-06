@@ -31,25 +31,30 @@ class Node:
         return select_probs
 
     def rollout(self, env: GameBoard, epsilon: float):
-        state = self.state
-        self.n += 1
-        if state.is_done():
-            return self
+        edge = self
+        # go down to edge when children node is all searched
+        while len(edge.children) > 0 and all(lambda x: x.n == 0, edge.children):
+            edge = np.random.choice(
+                edge.children, edge.greedy_probs(epsilon).values())
 
-        actions = self.state.legal_actions()
-        if len(self.children) == 0 and len(actions) > 0:
+        if edge.state.is_done():
+            return edge
+
+        if len(edge.children) == 0:
+            state = edge.state
+            actions = edge.state.legal_actions()
             for action in actions:
                 next_state, _, _ = env.step(state, action)
                 child = Node(next_state, self)
-                self.children.append(child)
-
-        child: Node = np.random.choice(
-            self.children, self.greedy_probs(epsilon).values())
-        return child.rollout(env, epsilon)
+                edge.children.append(child)
+        untried = filter(lambda x: x.n == 0, edge.children)
+        edge = np.random.choice(untried)
+        return edge
 
     def backpropagete(self, color):
         node = self
         while node is not None:
+            node.n += 1
             if node.state.is_win(color):
                 node.q += 1
             node = node.parent
