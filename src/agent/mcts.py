@@ -48,15 +48,14 @@ class Node:
                 child = Node(next_state, self)
                 edge.children.append(child)
         untried = filter(lambda x: x.n == 0, edge.children)
-        edge = np.random.choice(untried)
-        return edge
+        return np.random.choice(untried)
 
-    def backpropagete(self, color):
+    def backpropagate(self, color):
         node = self
+        q = 1 if node.state.is_win(color) else 0
         while node is not None:
             node.n += 1
-            if node.state.is_win(color):
-                node.q += 1
+            node.q += q
             node = node.parent
 
 
@@ -70,7 +69,7 @@ class MCTS:
     def simulate(self):
         for _ in range(self.episode):
             edge = self.root.rollout(self.env, self.epsilon)
-            edge.backpropagete(self.root.state.color)
+            edge.backpropagate(self.root.state.color)
 
     # input state is owned by opponent
     def proceed(self, state):
