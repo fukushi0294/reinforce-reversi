@@ -42,7 +42,7 @@ class Node:
 
         if len(edge.children) == 0:
             state = edge.state
-            actions = edge.state.legal_actions()
+            actions = env.get_actions(edge.state)
             for action in actions:
                 next_state, _, _ = env.step(state, action)
                 child = Node(next_state, self)

@@ -6,6 +6,7 @@ from collections import defaultdict
 from env.gameboard import GameBoard
 from agent.simple_agent import SimpleAgent
 from common.state import State
+import numpy as np
 
 
 class RandomAgent(SimpleAgent):
@@ -15,7 +16,7 @@ class RandomAgent(SimpleAgent):
     def reset(self):
         pass
 
-    def get_action(self, state: State):
+    def get_action_probs(self, state: State):
         if state.color != self.color:
             return None
         legal_hands = state.legal_hands()
@@ -24,13 +25,17 @@ class RandomAgent(SimpleAgent):
         p = 1/len(legal_hands)
         return {s[0] * 8 + s[1]: p for s in legal_hands}
 
+    def get_action(self, env: GameBoard, state: State):
+        actions = env.get_actions(state)
+        return np.random.choice(actions)
+
     def step(self, observation, reward, done):
         pass
 
-# predict one step
+
 def eval_onestep(agent: RandomAgent, V, env: GameBoard, gamma=0.9):
     state = env.reset()
-    action_probs = agent.get_action(state)
+    action_probs = agent.get_action_probs(state)
     new_V = 0
 
     for action, action_probs in action_probs.items():

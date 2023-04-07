@@ -7,6 +7,7 @@ from collections import deque
 class State:
     board: np.ndarray
     reward_map: np.ndarray
+    neighers: np.ndarray
     color: int
     memory = deque(maxlen=5)
 

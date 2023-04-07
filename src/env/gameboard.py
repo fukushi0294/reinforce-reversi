@@ -46,58 +46,80 @@ class GameBoard:
         board = np.zeros((8, 8), dtype=int)
         board[3][3], board[4][4] = 1, 1
         board[3][4], board[4][3] = -1, -1
+
+        neighers = np.array([[2, 3], [2, 4], [3, 2], [3, 5], [
+                            4, 2], [4, 5], [5, 3], [5, 4]])
         reward_map = np.zeros((8, 8), dtype=int)
         reward_map[2, 3], reward_map[2, 4] = -1, 1
         reward_map[3, 2], reward_map[3, 5] = -1, 1
         reward_map[4, 2], reward_map[4, 5] = 1, -1
         reward_map[5, 3], reward_map[5, 4] = 1, -1
-        return State(board, reward_map, 1)
+        return State(board, reward_map, neighers, 1)
 
     # return next_state, reward, done
-    def step(self, state: State, action: int):
-        next_state = State(state.board, state.reward_map, state.color)
-        block = 1 if action > 0 else -1
+    def step(self, state: State, action: int, block):
+        next_state = State(state.board, state.reward_map,
+                           state.neighers, -block)
         row, col = divmod(abs(action), 8)
         current = state.board[row][col]
         if current != 0:
             return next_state, 0, False
 
-        # check illegal step
-        reward = state.reward_map[row, col]
-        if reward == 0 or reward * block < 0:
-            return next_state, 0, False
-
         # below process is legal action
-        to_flipped = self.search(row, col, next_state.board, block)
-        for row, col in to_flipped:
-            state.board[row, col] *= -1
-        self.update_reward(row, col, next_state.reward_map, block)
         next_state.board[row, col] = block
-        next_state.color *= -1
-        return next_state, reward, next_state.is_done()
+        to_flipped = self.search(row, col, next_state.board, block)
+        for r, c in to_flipped:
+            next_state.board[r, c] *= -1
+        next_state.board[row, col] = block
+        self.update_neighers(next_state, row, col)
+        return next_state, len(to_flipped), next_state.is_done()
 
     def search(self, start_row, start_col, board: np.ndarray, color: int):
         to_flipped = []
         for vec in self.action_vectors.values():
             row, col = start_row, start_col
-            while True:
+            to_flipped_vec = []
+            sandwitched = False
+            while not sandwitched:
                 row += vec[0]
                 col += vec[1]
                 if row < 0 or row > 7 or col < 0 or col > 7:
                     break
                 searched = board[(row, col)]
-                if searched == 0 or searched == color:
+                if searched == 0:
                     break
-                to_flipped.append((row, col))
+                if searched == color:
+                    sandwitched = len(to_flipped_vec) > 0
+                    break
+                else:
+                    to_flipped_vec.append((row, col))
+            if sandwitched:
+                to_flipped.extend(to_flipped_vec)
         return to_flipped
 
-    def update_reward(self, row, col, reward_map: np.ndarray, color: int):
-        reward_map[row, col] = 0
+    def update_neighers(self, state: State, row, col):
+        idx = np.where((state.neighers == [row, col]).all(axis=1))[0][0]
+        state.neighers = np.delete(state.neighers, idx, axis=0)
         for vec in self.action_vectors.values():
             neigher_row = row + vec[0]
             neigher_col = col + vec[1]
-            to_filpped = self.search(neigher_row, neigher_col, color)
-            reward_map[neigher_row, neigher_col] = len(to_filpped)
+            if neigher_row not in range(8) or neigher_col not in range(8):
+                continue
+            is_in = any([([neigher_row, neigher_col] == x).all()
+                        for x in state.neighers])
+            if state.board[neigher_row, neigher_col] == 0 and not is_in:
+                state.neighers = np.concatenate(
+                    (state.neighers, [[neigher_row, neigher_col]]), axis=0)
+
+    def get_actions(self, state: State):
+        to_flippeds = []
+        for n in state.neighers:
+            row, col = n
+            to_filpped = self.search(row, col, state.board, state.color)
+            if len(to_filpped) > 0:
+                to_flippeds.append((row, col))
+        to_flippeds = set(to_flippeds)
+        return list(map(lambda x: 8*x[0] + x[1], to_flippeds))
 
     def render(self, state: State):
         if self.fig is None or self.ax is None:
