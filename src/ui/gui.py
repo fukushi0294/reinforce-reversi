@@ -32,11 +32,10 @@ class ReversiGUI:
             if isinstance(v, str) and "Human" == v:
                 self.player_color = k
                 self.canvas.bind("<Button-1>", self.place_stone)
-                self.window.bind("<<HumanDone>>", self.agent_action)
             else:
                 self.agent = v
 
-    def agent_action(self, event):
+    def agent_action(self, event=None):
         action = self.agent.get_action(self.env, self.state)
         next_state, _, _ = self.env.step(self.state, action, self.agent.color)
         self.state = next_state
@@ -68,10 +67,13 @@ class ReversiGUI:
         row = int(event.y / square_size)
 
         action = 8 * row + col
+        actions = env.get_actions(self.state)
+        if action not in actions:
+            return
         next_state, _, _ = self.env.step(self.state, action, self.player_color)
         self.state = next_state
         self.draw_board()
-        self.window.event_generate("<<HumanDone>>", when="tail")
+        self.window.after(1000, self.agent_action)
 
 
 if __name__ == '__main__':

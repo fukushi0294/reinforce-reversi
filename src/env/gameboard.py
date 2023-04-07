@@ -40,7 +40,7 @@ class GameBoard:
         self.fig, self.ax = None, None
 
     def reward(self, state: State, action: int, next_state: State):
-        return state.reward_map
+        return state.neighers_map
 
     def reset(self) -> State:
         board = np.zeros((8, 8), dtype=int)
@@ -49,17 +49,15 @@ class GameBoard:
 
         neighers = np.array([[2, 3], [2, 4], [3, 2], [3, 5], [
                             4, 2], [4, 5], [5, 3], [5, 4]])
-        reward_map = np.zeros((8, 8), dtype=int)
-        reward_map[2, 3], reward_map[2, 4] = -1, 1
-        reward_map[3, 2], reward_map[3, 5] = -1, 1
-        reward_map[4, 2], reward_map[4, 5] = 1, -1
-        reward_map[5, 3], reward_map[5, 4] = 1, -1
-        return State(board, reward_map, neighers, 1)
+        neighers_map = np.zeros((8, 8), dtype=bool)
+        for n in neighers:
+            row, col = n
+            neighers_map[row, col] = True
+        return State(board, neighers_map, 1)
 
     # return next_state, reward, done
     def step(self, state: State, action: int, block):
-        next_state = State(state.board, state.reward_map,
-                           state.neighers, -block)
+        next_state = State(state.board, state.neighers_map, -block)
         row, col = divmod(abs(action), 8)
         current = state.board[row][col]
         if current != 0:
@@ -98,23 +96,21 @@ class GameBoard:
         return to_flipped
 
     def update_neighers(self, state: State, row, col):
-        idx = np.where((state.neighers == [row, col]).all(axis=1))[0][0]
-        state.neighers = np.delete(state.neighers, idx, axis=0)
+        state.neighers_map[row, col] = False
         for vec in self.action_vectors.values():
             neigher_row = row + vec[0]
             neigher_col = col + vec[1]
             if neigher_row not in range(8) or neigher_col not in range(8):
                 continue
-            is_in = any([([neigher_row, neigher_col] == x).all()
-                        for x in state.neighers])
+            is_in = state.neighers_map[neigher_row, neigher_col]
             if state.board[neigher_row, neigher_col] == 0 and not is_in:
-                state.neighers = np.concatenate(
-                    (state.neighers, [[neigher_row, neigher_col]]), axis=0)
+                state.neighers_map[neigher_row, neigher_col] = True
 
     def get_actions(self, state: State):
         to_flippeds = []
-        for n in state.neighers:
-            row, col = n
+        rows, cols = np.where(state.neighers_map)
+        for i in range(len(rows)):
+            row, col = rows[i], cols[i]
             to_filpped = self.search(row, col, state.board, state.color)
             if len(to_filpped) > 0:
                 to_flippeds.append((row, col))

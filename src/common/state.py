@@ -6,22 +6,21 @@ from collections import deque
 @dataclass
 class State:
     board: np.ndarray
-    reward_map: np.ndarray
-    neighers: np.ndarray
+    neighers_map: np.ndarray
     color: int
     memory = deque(maxlen=5)
 
     @property
     def height(self):
-        return len(self.reward_map)
+        return len(self.neighers_map)
 
     @property
     def width(self):
-        return len(self.reward_map[0])
+        return len(self.neighers_map[0])
 
     @property
     def shape(self):
-        return self.reward_map.shape
+        return self.neighers_map.shape
 
     def is_win(self, color) -> bool:
         return np.count_nonzero(self.board == color) > np.count_nonzero(self.board == - color)
@@ -36,9 +35,9 @@ class State:
 
     def legal_hands(self):
         if self.color > 0:
-            hands = np.where(self.reward_map > 0)
+            hands = np.where(self.neighers_map > 0)
         else:
-            hands = np.where(self.reward_map < 0)
+            hands = np.where(self.neighers_map < 0)
         return [(hands[0][i], hands[1][i]) for i in range(len(hands[0]))]
 
     def legal_actions(self):
