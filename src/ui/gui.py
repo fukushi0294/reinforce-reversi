@@ -7,13 +7,14 @@ from tkinter import ttk
 import numpy as np
 from env.gameboard import GameBoard
 from agent.random_agent import RandomAgent
-from agent.simple_agent import SimpleAgent
+from common.exception import NotFoundLegalActionException
 
 
 class ReversiGUI:
-    def __init__(self, env: GameBoard):
+    def __init__(self, env: GameBoard, agent_delay=1000):
         self.env = env
         self.state = env.reset()
+        self.delay = agent_delay
         self.board_size = self.state.board.shape[0]
         self.color_map = {
             1: 'black',
@@ -22,6 +23,7 @@ class ReversiGUI:
 
         # place my canvas to upper right corner
         self.window = tk.Tk()
+        self.window.title("Reversi Simulator")
         self.window.geometry("800x800")
         self.canvas = tk.Canvas(self.window, width=500, height=500)
         self.canvas.pack(side=tk.RIGHT), self.canvas.place(x=20, y=20)
@@ -54,12 +56,36 @@ class ReversiGUI:
         self.start_button.bind(
             "<Button-1>", self.start_game)
 
+        # subscribe to done event and when recived, show message box
+        self.window.bind("<<Done>>", self.done)
+
+        self.listbox = tk.Listbox(self.window)
+        self.listbox.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        self.listbox.place(
+            x=10, y=540, width=0.9*self.window.winfo_screenwidth(), height=self.window.winfo_screenheight()-self.canvas.winfo_height() - 20)
+
     def start(self):
         self.window.mainloop()
+
+    def log(self, message):
+        self.listbox.insert(tk.END, message)
+        self.listbox.see(tk.END)
+
+    def done(self, event=None):
+        black_count = self.state.count(1)
+        white_count = self.state.count(-1)
+        self.log(f"Black: {black_count}, White: {white_count}")
+        if self.state.is_win(1):
+            self.log("Black wins")
+        elif self.state.is_win(-1):
+            self.log("White wins")
+        else:
+            self.log("Draw")
 
     def start_game(self, event=None):
         if self.player1.get() and self.player2.get():
             self.window.event_generate("<<Start>>")
+            self.log("Game started")
 
     def player1_selected(self, event=None):
         agent_map = {
@@ -70,17 +96,23 @@ class ReversiGUI:
             self.player_color = 1
 
             def event_handler(event):
-                self.place_stone(event)
-                self.window.after(
-                    1000, lambda: self.window.event_generate("<<Player1TurnOver>>"))
+                done = self.human_action(event)
+                if done:
+                    self.window.event_generate("<<Done>>")
+                else:
+                    self.window.after(
+                        self.delay, lambda: self.window.event_generate("<<Player1TurnOver>>"))
             self.canvas.bind("<Button-1>", lambda event: event_handler(event))
         else:
             agent = agent_map[self.player1.get()](player_color=1)
 
             def event_handler(event, agent):
-                self.agent_action(event, agent)
-                self.window.after(
-                    1000, lambda: self.window.event_generate("<<Player1TurnOver>>"))
+                done = self.agent_action(event, agent)
+                if done:
+                    self.window.event_generate("<<Done>>")
+                else:
+                    self.window.after(
+                        self.delay, lambda: self.window.event_generate("<<Player1TurnOver>>"))
 
             self.window.bind("<<Player2TurnOver>>",
                              lambda event: event_handler(event, agent))
@@ -94,17 +126,27 @@ class ReversiGUI:
         agent = agent_map[self.player2.get()](player_color=-1)
 
         def event_handler(event, agent):
-            self.agent_action(event, agent)
-            self.window.after(
-                1000, lambda: self.window.event_generate("<<Player2TurnOver>>"))
+            done = self.agent_action(event, agent)
+            if done:
+                self.window.event_generate("<<Done>>")
+            else:
+                self.window.after(
+                    self.delay, lambda: self.window.event_generate("<<Player2TurnOver>>"))
         self.window.bind("<<Player1TurnOver>>",
                          lambda event: event_handler(event, agent))
 
     def agent_action(self, event, agent):
-        action = agent.get_action(self.env, self.state)
-        next_state, _, _ = self.env.step(self.state, action, agent.color)
-        self.state = next_state
-        self.draw_board()
+        try:
+            action = agent.get_action(self.env, self.state)
+            next_state, _, done = self.env.step(
+                self.state, action, agent.color)
+            self.state = next_state
+            self.draw_board()
+            return done
+        except NotFoundLegalActionException as e:
+            self.log("No legal action, turn is skipped")
+            opponent_actions = self.env.get_actions(self.state, -agent.color)
+            return len(opponent_actions) == 0
 
     def draw_board(self):
         square_size = 500 // self.board_size
@@ -125,7 +167,7 @@ class ReversiGUI:
                 self.canvas.create_oval(
                     col*square_size + space, row*square_size + space, (col+1)*square_size - space, (row+1)*square_size-space, fill=v)
 
-    def place_stone(self, event):
+    def human_action(self, event):
         square_size = 500 // self.board_size
         # Get the row and column where the user clicked
         col = int(event.x / square_size)
@@ -135,12 +177,14 @@ class ReversiGUI:
         actions = env.get_actions(self.state)
         if action not in actions:
             return
-        next_state, _, _ = self.env.step(self.state, action, self.player_color)
+        next_state, _, done = self.env.step(
+            self.state, action, self.player_color)
         self.state = next_state
         self.draw_board()
+        return done
 
 
 if __name__ == '__main__':
     env = GameBoard()
-    gui = ReversiGUI(env=env)
+    gui = ReversiGUI(env=env, agent_delay=200)
     gui.start()

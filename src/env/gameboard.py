@@ -53,11 +53,11 @@ class GameBoard:
         for n in neighers:
             row, col = n
             neighers_map[row, col] = True
-        return State(board, neighers_map, 1)
+        return State(board, neighers_map)
 
     # return next_state, reward, done
     def step(self, state: State, action: int, block):
-        next_state = State(state.board, state.neighers_map, -block)
+        next_state = State(state.board, state.neighers_map)
         row, col = divmod(abs(action), 8)
         current = state.board[row][col]
         if current != 0:
@@ -106,12 +106,12 @@ class GameBoard:
             if state.board[neigher_row, neigher_col] == 0 and not is_in:
                 state.neighers_map[neigher_row, neigher_col] = True
 
-    def get_actions(self, state: State):
+    def get_actions(self, state: State, color: int):
         to_flippeds = []
         rows, cols = np.where(state.neighers_map)
         for i in range(len(rows)):
             row, col = rows[i], cols[i]
-            to_filpped = self.search(row, col, state.board, state.color)
+            to_filpped = self.search(row, col, state.board, color)
             if len(to_filpped) > 0:
                 to_flippeds.append((row, col))
         to_flippeds = set(to_flippeds)

@@ -6,6 +6,7 @@ from collections import defaultdict
 from env.gameboard import GameBoard
 from agent.simple_agent import SimpleAgent
 from common.state import State
+from common.exception import NotFoundLegalActionException
 import numpy as np
 
 
@@ -16,17 +17,10 @@ class RandomAgent(SimpleAgent):
     def reset(self):
         pass
 
-    def get_action_probs(self, state: State):
-        if state.color != self.color:
-            return None
-        legal_hands = state.legal_hands()
-        if len(legal_hands) == 0:
-            return None
-        p = 1/len(legal_hands)
-        return {s[0] * 8 + s[1]: p for s in legal_hands}
-
     def get_action(self, env: GameBoard, state: State):
-        actions = env.get_actions(state)
+        actions = env.get_actions(state, self.color)
+        if len(actions) == 0:
+            raise NotFoundLegalActionException("No legal action")
         return np.random.choice(actions)
 
     def step(self, observation, reward, done):
