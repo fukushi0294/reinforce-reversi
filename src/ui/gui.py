@@ -3,6 +3,7 @@ if '__file__' in globals():
     import sys
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import tkinter as tk
+from tkinter import ttk
 import numpy as np
 from env.gameboard import GameBoard
 from agent.random_agent import RandomAgent
@@ -19,25 +20,89 @@ class ReversiGUI:
             -1: 'white'
         }
 
+        # place my canvas to upper right corner
         self.window = tk.Tk()
+        self.window.geometry("800x800")
         self.canvas = tk.Canvas(self.window, width=500, height=500)
-        self.canvas.pack()
+        self.canvas.pack(side=tk.RIGHT), self.canvas.place(x=20, y=20)
         self.draw_board()
+
+        # place text laval next to canvas
+        self.player1_label = tk.Label(self.window, text="Player 1")
+        self.player1_label.pack(
+            side=tk.RIGHT), self.player1_label.place(x=600, y=20)
+
+        # place player selection next to canvas and under label
+        self.player1 = ttk.Combobox(
+            self.window, values=["Human", "Random", "MonteCarlo", "Q-Learning"], state="readonly")
+        self.player1.pack(side=tk.RIGHT), self.player1.place(x=600, y=50)
+        self.player1.bind("<<ComboboxSelected>>", self.player1_selected)
+
+        self.player2_label = tk.Label(self.window, text="Player 2")
+        self.player2_label.pack(
+            side=tk.RIGHT), self.player2_label.place(x=600, y=100)
+
+        self.player2 = ttk.Combobox(
+            self.window, values=["Random", "MonteCarlo", "Q-Learning"], state="readonly")
+        self.player2.pack(side=tk.RIGHT), self.player2.place(x=600, y=130)
+        self.player2.bind("<<ComboboxSelected>>", self.player2_selected)
+
+        self.start_button = tk.Button(
+            self.window, text="Start", command=self.start)
+        self.start_button.pack(
+            side=tk.RIGHT), self.start_button.place(x=600, y=200)
+        self.start_button.bind(
+            "<Button-1>", self.start_game)
 
     def start(self):
         self.window.mainloop()
 
-    def bind_player(self, args: dict):
-        for k, v in args.items():
-            if isinstance(v, str) and "Human" == v:
-                self.player_color = k
-                self.canvas.bind("<Button-1>", self.place_stone)
-            else:
-                self.agent = v
+    def start_game(self, event=None):
+        if self.player1.get() and self.player2.get():
+            self.window.event_generate("<<Start>>")
 
-    def agent_action(self, event=None):
-        action = self.agent.get_action(self.env, self.state)
-        next_state, _, _ = self.env.step(self.state, action, self.agent.color)
+    def player1_selected(self, event=None):
+        agent_map = {
+            "Random": RandomAgent,
+        }
+
+        if self.player1.get() == "Human":
+            self.player_color = 1
+
+            def event_handler(event):
+                self.place_stone(event)
+                self.window.after(
+                    1000, lambda: self.window.event_generate("<<Player1TurnOver>>"))
+            self.canvas.bind("<Button-1>", lambda event: event_handler(event))
+        else:
+            agent = agent_map[self.player1.get()](player_color=1)
+
+            def event_handler(event, agent):
+                self.agent_action(event, agent)
+                self.window.after(
+                    1000, lambda: self.window.event_generate("<<Player1TurnOver>>"))
+
+            self.window.bind("<<Player2TurnOver>>",
+                             lambda event: event_handler(event, agent))
+            self.window.bind(
+                "<<Start>>", lambda event: event_handler(event, agent))
+
+    def player2_selected(self, event=None):
+        agent_map = {
+            "Random": RandomAgent,
+        }
+        agent = agent_map[self.player2.get()](player_color=-1)
+
+        def event_handler(event, agent):
+            self.agent_action(event, agent)
+            self.window.after(
+                1000, lambda: self.window.event_generate("<<Player2TurnOver>>"))
+        self.window.bind("<<Player1TurnOver>>",
+                         lambda event: event_handler(event, agent))
+
+    def agent_action(self, event, agent):
+        action = agent.get_action(self.env, self.state)
+        next_state, _, _ = self.env.step(self.state, action, agent.color)
         self.state = next_state
         self.draw_board()
 
@@ -73,16 +138,9 @@ class ReversiGUI:
         next_state, _, _ = self.env.step(self.state, action, self.player_color)
         self.state = next_state
         self.draw_board()
-        self.window.after(1000, self.agent_action)
 
 
 if __name__ == '__main__':
     env = GameBoard()
     gui = ReversiGUI(env=env)
-
-    agent = RandomAgent(player_color=-1)
-    gui.bind_player({
-        1: "Human",
-        -1: agent
-    })
     gui.start()
