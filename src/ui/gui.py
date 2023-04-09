@@ -4,6 +4,7 @@ if '__file__' in globals():
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import tkinter as tk
 from tkinter import ttk
+from agent.monte_carlo_agent import MonteCarloAgent
 import numpy as np
 from env.gameboard import GameBoard
 from agent.random_agent import RandomAgent
@@ -90,13 +91,14 @@ class ReversiGUI:
     def player1_selected(self, event=None):
         agent_map = {
             "Random": RandomAgent,
+            "MonteCarlo": MonteCarloAgent,
         }
 
         if self.player1.get() == "Human":
             self.player_color = 1
 
             def event_handler(event):
-                done = self.human_action(event)
+                done = self.human_action(event, self.player_color)
                 if done:
                     self.window.event_generate("<<Done>>")
                 else:
@@ -122,6 +124,7 @@ class ReversiGUI:
     def player2_selected(self, event=None):
         agent_map = {
             "Random": RandomAgent,
+            "MonteCarlo": MonteCarloAgent,
         }
         agent = agent_map[self.player2.get()](player_color=-1)
 
@@ -167,14 +170,14 @@ class ReversiGUI:
                 self.canvas.create_oval(
                     col*square_size + space, row*square_size + space, (col+1)*square_size - space, (row+1)*square_size-space, fill=v)
 
-    def human_action(self, event):
+    def human_action(self, event, color):
         square_size = 500 // self.board_size
         # Get the row and column where the user clicked
         col = int(event.x / square_size)
         row = int(event.y / square_size)
 
         action = 8 * row + col
-        actions = env.get_actions(self.state)
+        actions = env.get_actions(self.state, color)
         if action not in actions:
             return
         next_state, _, done = self.env.step(

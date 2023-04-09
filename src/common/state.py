@@ -3,11 +3,12 @@ import numpy as np
 from collections import deque
 
 
-@dataclass
 class State:
-    board: np.ndarray
-    neighers_map: np.ndarray
-    memory = deque(maxlen=5)
+    def __init__(self, board: np.ndarray, neighers_map: np.ndarray, next_turn: int):
+        self.board = board
+        self.neighers_map = neighers_map
+        self.next_turn = next_turn
+        self.memory = deque(maxlen=5)
 
     @property
     def height(self):

@@ -53,11 +53,11 @@ class GameBoard:
         for n in neighers:
             row, col = n
             neighers_map[row, col] = True
-        return State(board, neighers_map)
+        return State(board, neighers_map, 1)
 
     # return next_state, reward, done
     def step(self, state: State, action: int, block):
-        next_state = State(state.board, state.neighers_map)
+        next_state = State(state.board.copy(), state.neighers_map.copy(), next_turn=-block)
         row, col = divmod(abs(action), 8)
         current = state.board[row][col]
         if current != 0:
@@ -70,6 +70,7 @@ class GameBoard:
             next_state.board[r, c] *= -1
         next_state.board[row, col] = block
         self.update_neighers(next_state, row, col)
+        next_state.save(action)
         return next_state, len(to_flipped), next_state.is_done()
 
     def search(self, start_row, start_col, board: np.ndarray, color: int):
