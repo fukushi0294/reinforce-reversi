@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 import numpy as np
 from collections import deque
+from copy import deepcopy
 
 
 class State:
@@ -9,6 +9,11 @@ class State:
         self.neighers_map = neighers_map
         self.next_turn = next_turn
         self.memory = deque(maxlen=5)
+
+    def skip(self):
+        next_sate = deepcopy(self)
+        next_sate.next_turn*= -1
+        return next_sate
 
     @property
     def height(self):

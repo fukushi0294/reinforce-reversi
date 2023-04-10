@@ -1,3 +1,4 @@
+from common.exception import NotFoundLegalActionException
 import numpy as np
 from env.gameboard import GameBoard
 from common.state import State
@@ -35,7 +36,8 @@ class Node:
         # go down to edge when children node is all searched
         while len(edge.children) > 0 and all(x.n != 0 for x in edge.children):
             select_probs = edge.greedy_probs(epsilon)
-            edge = np.random.choice(list(select_probs.keys()), p = list(select_probs.values()))
+            edge = np.random.choice(
+                list(select_probs.keys()), p=list(select_probs.values()))
 
         if edge.state.is_done():
             return edge
@@ -43,10 +45,15 @@ class Node:
         if len(edge.children) == 0:
             state = edge.state
             actions = env.get_actions(edge.state, state.next_turn)
-            for action in actions:
-                next_state, _, _ = env.step(state, action, state.next_turn)
+            if len(actions) == 0:
+                next_state = state.skip()
                 child = Node(next_state, edge)
                 edge.children.append(child)
+            else:
+                for action in actions:
+                    next_state, _, _ = env.step(state, action, state.next_turn)
+                    child = Node(next_state, edge)
+                    edge.children.append(child)
         untried = list(filter(lambda x: x.n == 0, edge.children))
         return np.random.choice(untried)
 
@@ -65,7 +72,7 @@ class MCTS:
         self.root = Node(state)
         self.player_color = color
         self.epsilon = 0.1
-        self.episode = 1024
+        self.episode = 2048
 
     def simulate(self):
         for _ in range(self.episode):
@@ -74,6 +81,8 @@ class MCTS:
 
     def get_action(self):
         node = self.root.select_child()
+        if node is None:
+            raise NotFoundLegalActionException("No legal action")
         return node.state.memory[-1]
 
     def proceed(self, last_action: int):
@@ -81,4 +90,6 @@ class MCTS:
         for child in self.root.children:
             if child.state.memory[-1] == last_action:
                 current_node = child
+        if current_node is None:
+            print("illegal state")
         self.root = current_node

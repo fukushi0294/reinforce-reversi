@@ -17,7 +17,7 @@ class MonteCarloAgent(SimpleAgent):
         self.mcts: MCTS = None
 
     def reset(self):
-        pass
+        self.mcts = None
 
     def get_action(self, env: GameBoard, state: State):
         if self.mcts is None:
