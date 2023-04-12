@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from common.state import State
 from agent.simple_agent import SimpleAgent
 from env.gameboard import GameBoard
@@ -53,7 +52,7 @@ class QLearningAgent(SimpleAgent):
             idx = np.argmax(legal_Q)
             return actions[idx]
 
-    def train(self, env: GameBoard, state: State, opponent_action: Callable[[GameBoard, State], int]):
+    def train(self, env: GameBoard, state: State, opponent_action_fn: Callable[[GameBoard, State], int]):
         with tf.GradientTape() as tape:
             actions = env.get_actions(state, self.color)
             Q = self.qnet.forward(state)
@@ -69,15 +68,14 @@ class QLearningAgent(SimpleAgent):
 
             if not done:
                 # proceed state by opponent
-                opponent_action = opponent_action(env, next_state)
+                opponent_action = opponent_action_fn(env, next_state)
                 next_state, reward, done = env.step(
                     next_state, opponent_action, -self.color)
 
                 next_actions = env.get_actions(next_state, -self.color)
                 next_Q = self.qnet.forward(next_state)
                 next_legal_Q = [next_Q[a] for a in next_actions]
-                next_idx = np.argmax(next_legal_Q)
-                next_Q = next_legal_Q[next_idx]
+                next_Q = np.max(next_legal_Q)
                 Q_target = reward + (1 - done) * self.gamma * next_Q
             else:
                 Q_target = 0  # or an appropriate reward for game ending
