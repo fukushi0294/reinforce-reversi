@@ -57,7 +57,8 @@ class GameBoard:
 
     # return next_state, reward, done
     def step(self, state: State, action: int, block):
-        next_state = State(state.board.copy(), state.neighers_map.copy(), next_turn=-block)
+        next_state = State(state.board.copy(),
+                           state.neighers_map.copy(), next_turn=-block)
         row, col = divmod(abs(action), 8)
         current = state.board[row][col]
         if current != 0:
@@ -71,7 +72,12 @@ class GameBoard:
         next_state.board[row, col] = block
         self.update_neighers(next_state, row, col)
         next_state.save(action)
-        return next_state, len(to_flipped), next_state.is_done()
+        done = next_state.is_done()
+        if done:
+            reward = 1 if next_state.is_win(block) else 0
+        else:
+            reward = 0
+        return next_state, reward, done
 
     def search(self, start_row, start_col, board: np.ndarray, color: int):
         to_flipped = []
