@@ -6,6 +6,7 @@ import tensorflow as tf
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.models import Sequential
 from keras.optimizers import SGD
+from common.exception import NotFoundLegalActionException
 
 
 class QNet:
@@ -41,6 +42,9 @@ class QLearningAgent(SimpleAgent):
 
     def get_action(self, env: GameBoard, state: State):
         actions = env.get_actions(state, self.color)
+        if len(actions) == 0:
+            raise NotFoundLegalActionException("No legal action")
+
         if np.random.rand() < self.epsilon:
             return np.random.choice(actions)
         else:

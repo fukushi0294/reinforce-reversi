@@ -5,6 +5,7 @@ if '__file__' in globals():
 from agent.q_learning_agent import QLearningAgent
 from agent.random_agent import RandomAgent
 from env.gameboard import GameBoard
+from common.exception import NotFoundLegalActionException
 
 
 class SequentialTrainingRunner:
@@ -22,17 +23,25 @@ class SequentialTrainingRunner:
             total_loss, cnt = 0, 0
             done = False
             while not done:
-                action = self.trainee.get_action(env, state)
+                try:
+                    action = self.trainee.get_action(env, state)
+                except NotFoundLegalActionException:
+                    continue
                 next_state, _, done = env.step(
                     state, action, self.trainee.color)
                 if done:
                     loss = self.trainee.train(env, state)
-                else:
+                    break
+                try:
                     action = self.opponent.get_action(env, next_state)
-                    next_state, reward, done = env.step(
-                        state, action, self.trainee.color)
-                    loss = self.trainee.train(
-                        env, state, next_state, reward, done)
+                except NotFoundLegalActionException:
+                    loss = self.trainee.train(env, state)
+                    continue
+                next_state, reward, done = env.step(
+                    state, action, self.opponent.color)
+                loss = self.trainee.train(
+                    env, state, next_state, reward, done)
+
                 total_loss += loss
                 cnt += 1
                 state = next_state
