@@ -6,8 +6,6 @@ import tensorflow as tf
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.models import Sequential
 from keras.optimizers import SGD
-from tensorflow.python.keras.losses import mean_squared_error
-from typing import Callable
 
 
 class QNet:
@@ -20,7 +18,7 @@ class QNet:
         self.optimizer = SGD(learning_rate=0.001)
 
     def forward(self, state: State):
-        X = state.board.flatten()
+        X = state.board.flatten().reshape(1, -1)
         return self.model(X, training=True)
 
     def backward(self, tape: tf.GradientTape, loss):
@@ -48,40 +46,31 @@ class QLearningAgent(SimpleAgent):
         else:
             Q = self.qnet.forward(state)
             # extract legal actions
-            legal_Q = [Q[a] for a in actions]
+            legal_Q = [Q[0][a] for a in actions]
             idx = np.argmax(legal_Q)
             return actions[idx]
 
-    def train(self, env: GameBoard, state: State, opponent_action_fn: Callable[[GameBoard, State], int]):
+    def train(self, env: GameBoard, state: State, next_state: State = None, reward: int = None, done: bool = True):
         with tf.GradientTape() as tape:
             actions = env.get_actions(state, self.color)
             Q = self.qnet.forward(state)
             # extract legal actions
-            legal_Q = [Q[a] for a in actions]
+            legal_Q = [Q[0][a] for a in actions]
+            Q = tf.reduce_max(legal_Q)
 
-            idx = np.argmax(legal_Q)
-            action = actions[idx]
-            Q = legal_Q[idx]
-
-            # proceed state
-            next_state, _, done = env.step(state, action, self.color)
-
-            if not done:
+            if next_state is not None and reward is not None and not done:
                 # proceed state by opponent
-                opponent_action = opponent_action_fn(env, next_state)
-                next_state, reward, done = env.step(
-                    next_state, opponent_action, -self.color)
-
                 next_actions = env.get_actions(next_state, -self.color)
                 next_Q = self.qnet.forward(next_state)
-                next_legal_Q = [next_Q[a] for a in next_actions]
-                next_Q = np.max(next_legal_Q)
+                next_legal_Q = [next_Q[0][a] for a in next_actions]
+                next_Q = tf.reduce_max(next_legal_Q)
                 Q_target = reward + (1 - done) * self.gamma * next_Q
             else:
                 Q_target = 0  # or an appropriate reward for game ending
-            loss = mean_squared_error(Q, Q_target)
+            loss = tf.reduce_sum((Q - Q_target) **2)
 
         self.qnet.backward(tape, loss)
+        return loss
 
     def step(self, observation, reward, done):
         pass
