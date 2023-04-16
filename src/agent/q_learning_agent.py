@@ -12,11 +12,15 @@ from common.exception import NotFoundLegalActionException
 class QNet:
     def __init__(self) -> None:
         self.model = Sequential([
-            Dense(512, activation='relu', input_shape=(64,)),
-            Dense(512, activation='relu'),
-            Dense(64, activation='relu')
+            Dense(512, activation='tanh', input_shape=(64,)),
+            Dense(512, activation='tanh'),
+            Dense(64, activation='tanh')
         ])
         self.optimizer = SGD(learning_rate=0.001)
+        checkpoint = tf.train.Checkpoint(
+            model=self.model, optimizer=self.optimizer)
+        self.manager = tf.train.CheckpointManager(
+            checkpoint, directory='./checkpoints', max_to_keep=3)
 
     def forward(self, state: State):
         X = state.board.flatten().reshape(1, -1)
@@ -26,6 +30,9 @@ class QNet:
         gradients = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(
             zip(gradients, self.model.trainable_variables))
+
+    def save(self):
+        self.manager.save()
 
 
 class QLearningAgent(SimpleAgent):
@@ -54,27 +61,23 @@ class QLearningAgent(SimpleAgent):
             idx = np.argmax(legal_Q)
             return actions[idx]
 
-    def train(self, env: GameBoard, state: State, next_state: State = None, reward: int = None, done: bool = True):
+    def train(self, env: GameBoard, state: State, action:int, next_state: State, reward: int):
         with tf.GradientTape() as tape:
-            actions = env.get_actions(state, self.color)
             Q = self.qnet.forward(state)
-            # extract legal actions
-            legal_Q = [Q[0][a] for a in actions]
-            Q = tf.reduce_max(legal_Q)
-
-            if next_state is not None and reward is not None and not done:
-                # proceed state by opponent
-                next_actions = env.get_actions(next_state, -self.color)
+            next_actions = env.get_actions(next_state, self.color)
+            q = Q[0, action]
+            done = next_state.is_done()
+            if not done and len(next_actions) != 0:
                 next_Q = self.qnet.forward(next_state)
-                next_legal_Q = [next_Q[0][a] for a in next_actions]
-                next_Q = tf.reduce_max(next_legal_Q)
-                Q_target = reward + (1 - done) * self.gamma * next_Q
+                q_target = reward + self.gamma * tf.reduce_max(next_Q, axis=-1)
             else:
-                Q_target = 0  # or an appropriate reward for game ending
-            loss = tf.reduce_sum((Q - Q_target) **2)
+                q_target = reward
+            loss = (q - q_target)**2
 
-        self.qnet.backward(tape, loss)
-        return loss
+        gradients = tape.gradient(loss, self.qnet.model.trainable_variables)
+        self.qnet.optimizer.apply_gradients(
+            zip(gradients, self.qnet.model.trainable_variables))
+        return loss.numpy()
 
     def step(self, observation, reward, done):
         pass

@@ -8,11 +8,13 @@ class State:
         self.board = board
         self.neighers_map = neighers_map
         self.next_turn = next_turn
+        self.skip_cnt = 0
         self.memory = deque(maxlen=5)
 
     def skip(self):
         next_sate = deepcopy(self)
-        next_sate.next_turn*= -1
+        next_sate.next_turn *= -1
+        next_sate.skip_cnt += 1
         return next_sate
 
     @property
@@ -34,6 +36,8 @@ class State:
         return np.count_nonzero(self.board == color)
 
     def is_done(self) -> bool:
+        if self.skip_cnt == 2:
+            return True
         return (self.board.size - np.count_nonzero(self.board)) == 0
 
     def save(self, action: int):

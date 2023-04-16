@@ -4,9 +4,18 @@ if '__file__' in globals():
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from agent.q_learning_agent import QLearningAgent
 from agent.random_agent import RandomAgent
+from common.state import State
 from env.gameboard import GameBoard
 from common.exception import NotFoundLegalActionException
+import logging
 
+
+logger = logging.getLogger(__file__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 class SequentialTrainingRunner:
     def __init__(self) -> None:
@@ -14,40 +23,57 @@ class SequentialTrainingRunner:
         self.trainee = QLearningAgent(1)
         self.opponent = RandomAgent(-1)
 
+
     def run(self):
         env = GameBoard()
         loss_history = []
+        save_interval = 500
 
-        for _ in range(self.episode):
+        for i in range(self.episode):
             state = env.reset()
             total_loss, cnt = 0, 0
             done = False
             while not done:
-                try:
-                    action = self.trainee.get_action(env, state)
-                except NotFoundLegalActionException:
+                next_state, reward, action = self.one_step(env, state)
+                if not next_state:
+                    state = state.skip()
                     continue
-                next_state, _, done = env.step(
-                    state, action, self.trainee.color)
-                if done:
-                    loss = self.trainee.train(env, state)
-                    break
-                try:
-                    action = self.opponent.get_action(env, next_state)
-                except NotFoundLegalActionException:
-                    loss = self.trainee.train(env, state)
-                    continue
-                next_state, reward, done = env.step(
-                    state, action, self.opponent.color)
+                done = next_state.is_done()
                 loss = self.trainee.train(
-                    env, state, next_state, reward, done)
-
+                    env, state, action, next_state, reward)
                 total_loss += loss
                 cnt += 1
                 state = next_state
 
             loss_avg = total_loss / cnt
             loss_history.append(loss_avg)
+            logger.info(f"{i+1} game has done. loss: {loss_avg[0]:.4f}")
+
+
+            if (i+1) % save_interval == 0:
+                print(f"{i+1} game has done. Save gradients as checkpoint")
+                self.trainee.qnet.save()
+
+    def one_step(self, env: GameBoard, state: State):
+        try:
+            trainee_action = self.trainee.get_action(env, state)
+            next_state, reward, _ = env.step(
+                state, trainee_action, self.trainee.color)
+        except NotFoundLegalActionException:
+            next_state = state.skip()
+            reward = 0
+            trainee_action = -1
+
+        if next_state.is_done():
+            return next_state, reward, trainee_action
+
+        try:
+            action = self.opponent.get_action(env, next_state)
+            next_state, reward, _ = env.step(
+                next_state, action, self.opponent.color)
+            return next_state, -reward, trainee_action
+        except NotFoundLegalActionException:
+            return next_state.skip(), 0, trainee_action
 
 
 if __name__ == '__main__':
