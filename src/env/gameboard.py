@@ -74,7 +74,7 @@ class GameBoard:
         next_state.save(action)
         done = next_state.is_done()
         if done:
-            reward = 1 if next_state.is_win(block) else 0
+            reward = next_state.reward(block)
         else:
             reward = 0
         return next_state, reward, done

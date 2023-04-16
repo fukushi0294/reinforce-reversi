@@ -12,8 +12,7 @@ from common.exception import NotFoundLegalActionException
 class QNet:
     def __init__(self) -> None:
         self.model = Sequential([
-            Dense(512, activation='tanh', input_shape=(64,)),
-            Dense(512, activation='tanh'),
+            Dense(44, activation='tanh', input_shape=(64,)),
             Dense(64, activation='tanh')
         ])
         self.optimizer = SGD(learning_rate=0.001)
@@ -38,7 +37,7 @@ class QNet:
 class QLearningAgent(SimpleAgent):
     def __init__(self, player_color: int = 1, agent: SimpleAgent = None):
         self.color = player_color
-        self.gamma = 0.9
+        self.gamma = 1
         self.alpha = 0.8
         self.epsilon = 0.1
         self.qnet = QNet()
@@ -60,6 +59,18 @@ class QLearningAgent(SimpleAgent):
             legal_Q = [Q[0][a] for a in actions]
             idx = np.argmax(legal_Q)
             return actions[idx]
+        
+    def get_action_by_boltzmann(self, env: GameBoard, state: State, game_cnt: int):
+        actions = env.get_actions(state, self.color)
+        if len(actions) == 0:
+            raise NotFoundLegalActionException("No legal action")
+        temperature = 0.995 ** game_cnt
+        Q = self.qnet.forward(state)
+        legal_Q = [Q[0][a] for a in actions]
+        logits = tf.divide(legal_Q, temperature)
+        action_probabilities = tf.nn.softmax(logits)
+        return np.random.choice(actions, p=action_probabilities.numpy())
+
 
     def train(self, env: GameBoard, state: State, action:int, next_state: State, reward: int):
         with tf.GradientTape() as tape:
@@ -69,14 +80,13 @@ class QLearningAgent(SimpleAgent):
             done = next_state.is_done()
             if not done and len(next_actions) != 0:
                 next_Q = self.qnet.forward(next_state)
-                q_target = reward + self.gamma * tf.reduce_max(next_Q, axis=-1)
+                next_legal_Q = [next_Q[0][a] for a in next_actions]
+                q_target = reward + self.gamma * tf.reduce_max(next_legal_Q, axis=-1)
             else:
                 q_target = reward
             loss = (q - q_target)**2
 
-        gradients = tape.gradient(loss, self.qnet.model.trainable_variables)
-        self.qnet.optimizer.apply_gradients(
-            zip(gradients, self.qnet.model.trainable_variables))
+        self.qnet.backward(tape, loss)
         return loss.numpy()
 
     def step(self, observation, reward, done):

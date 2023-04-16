@@ -29,6 +29,11 @@ class State:
     def shape(self):
         return self.neighers_map.shape
 
+    def reward(self, color) -> int:
+        if np.count_nonzero(1) == np.count_nonzero(-1):
+            return 0
+        return 1 if self.is_win(color) else -1
+
     def is_win(self, color) -> bool:
         return np.count_nonzero(self.board == color) > np.count_nonzero(self.board == - color)
 
