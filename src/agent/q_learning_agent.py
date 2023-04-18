@@ -8,23 +8,29 @@ from tensorflow.python.keras.models import Sequential
 from keras.optimizers import SGD
 from common.exception import NotFoundLegalActionException
 from typing import List
+import pandas as pd
 
 
 class QNet:
     def __init__(self) -> None:
         self.model = Sequential([
-            Dense(44, activation='tanh', input_shape=(64,)),
+            Dense(44, activation='tanh', input_shape=(100, 64)),
             Dense(64, activation='tanh')
         ])
         self.optimizer = SGD(learning_rate=0.001)
         checkpoint = tf.train.Checkpoint(
             model=self.model, optimizer=self.optimizer)
         self.manager = tf.train.CheckpointManager(
-            checkpoint, directory='./checkpoints', max_to_keep=3)
+            checkpoint, directory='./checkpoints/single', max_to_keep=3)
 
     def forward(self, state: State):
         X = state.board.flatten().reshape(1, -1)
         return self.model(X, training=True)
+
+    def batch_forward(self, states: List[State]):
+        X = np.array([state.board.flatten().reshape(1, -1)
+                     for state in states])
+        return self.model(X)
 
     def backward(self, tape: tf.GradientTape, loss):
         gradients = tape.gradient(loss, self.model.trainable_variables)
@@ -122,6 +128,41 @@ class QLearningAgent(SimpleAgent):
 
         self.qnet.backward(tape, loss)
         return loss.numpy()
+
+    def batch_train(self, env: GameBoard, df: pd.DataFrame):
+        states = df["state"].to_numpy()
+        actions = df["action"].to_numpy()
+        next_states = df["next_state"].to_numpy()
+        rewards = df["reward"].to_numpy()
+
+        with tf.GradientTape() as tape:
+            Q = self.qnet.batch_forward(states).numpy()
+            q = np.array([Q[idx, action]
+                         for idx, action in enumerate(actions)])
+            q = tf.convert_to_tensor(q)
+            tape.watch(q)
+            next_Q = self.qnet.batch_forward(next_states).numpy()
+            next_actions = np.array(
+                [env.get_actions(next_state, self.color) for next_state in next_states])
+            rewards = np.array(rewards).reshape(-1, 1)
+            next_Q = np.concatenate([next_Q, rewards, next_actions], axis=1)
+            q_target = next_Q.apply_along_axis(
+                self.get_max_Q, axis=1, arr=next_Q, gamma=self.gamma)
+            q_target = tf.convert_to_tensor(q_target)
+            loss = tf.square(tf.subtract(q, q_target))
+
+        self.qnet.backward(tape, loss)
+        return loss.numpy()
+
+    def get_max_Q(row, gamma):
+        next_Q = row[:64]
+        reward = row[65]
+        if len(row) > 65:
+            actions = row[66:]
+            Q = np.max([next_Q[a] for a in actions])
+            return reward + gamma * Q
+        else:
+            return reward
 
     def step(self, observation, reward, done):
         pass
