@@ -80,15 +80,13 @@ class SelfPlayTrainingRunner:
 
             if (i+1) % save_interval == 0:
                 logger.info(
-                    f"{i+1}00 game has done. Save gradients as checkpoint")
+                    f"{i+1}00 game has done. Save weights as checkpoint")
                 self.trainee.qnet.save()
 
                 trainee_win = 0
                 states = [env.reset() for _ in range(batch_size)]
                 while len(states) != 0:
                     next_states = []
-                    current_board = []
-                    next_boards = []
                     for state in states:
                         next_state = self.one_step(env, state)
                         if not next_state.is_done():
