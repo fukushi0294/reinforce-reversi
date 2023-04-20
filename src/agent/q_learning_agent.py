@@ -89,8 +89,8 @@ class QLearningAgent(SimpleAgent):
     def reset(self):
         pass
 
-    def get_action(self, env: GameBoard, state: State):
-        actions = env.get_actions(state, self.color)
+    def get_greedy_action(self, env: GameBoard, state: State):
+        actions = env.get_actions(state, state.next_turn)
         if len(actions) == 0:
             raise NotFoundLegalActionException("No legal action")
 
@@ -102,6 +102,16 @@ class QLearningAgent(SimpleAgent):
             legal_Q = [Q[0][a] for a in actions]
             idx = np.argmax(legal_Q)
             return actions[idx]
+        
+    def get_action(self, env: GameBoard, state: State):
+        actions = env.get_actions(state, state.next_turn)
+        if len(actions) == 0:
+            raise NotFoundLegalActionException("No legal action")
+        Q = self.qnet.forward(state)
+        # extract legal actions
+        legal_Q = [Q[0][a] for a in actions]
+        idx = np.argmax(legal_Q)
+        return actions[idx]
 
     def get_action_by_boltzmann(self, env: GameBoard, state: State, game_cnt: int):
         actions = env.get_actions(state, self.color)
@@ -153,7 +163,7 @@ class QLearningAgent(SimpleAgent):
 
             q_target = df_q.apply(self.get_max_Q, axis=1)
             q_target = tf.convert_to_tensor(q_target, dtype=tf.float64)
-            loss = tf.reduce_mean(tf.square(tf.subtract(q, q_target)))
+            loss = tf.reduce_mean(tf.square(tf.subtract(q, -q_target)))
 
         self.qnet.backward(tape, loss)
         return loss.numpy()
