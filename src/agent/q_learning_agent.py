@@ -3,7 +3,7 @@ from agent.simple_agent import SimpleAgent
 from env.gameboard import GameBoard
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.layers import Dense, Dropout
 from tensorflow.python.keras.models import Sequential
 from keras.optimizers import SGD
 from common.exception import NotFoundLegalActionException
@@ -14,7 +14,10 @@ import pandas as pd
 class QNet:
     def __init__(self) -> None:
         self.model = Sequential([
-            Dense(44, activation='tanh', input_shape=(100, 64)),
+            Dense(512, activation='tanh', input_shape=(100, 64)),
+            Dropout(0.5),
+            Dense(512, activation='tanh'),
+            Dropout(0.5),
             Dense(64, activation='tanh')
         ])
         self.optimizer = SGD(learning_rate=0.001)
@@ -27,9 +30,10 @@ class QNet:
         X = state.board.flatten().reshape(1, -1)
         return self.model(X, training=True)
 
-    def batch_forward(self, states: List[State]):
-        X = np.array([state.board.flatten().reshape(1, -1)
-                     for state in states])
+    def batch_forward(self, boards: np.ndarray):
+        X = np.array([b.flatten().reshape(1, -1) for b in boards])
+        if X.ndim == 1:
+            return self.model(X[0])
         return self.model(X)
 
     def backward(self, tape: tf.GradientTape, loss):
@@ -129,38 +133,38 @@ class QLearningAgent(SimpleAgent):
         self.qnet.backward(tape, loss)
         return loss.numpy()
 
-    def batch_train(self, env: GameBoard, df: pd.DataFrame):
-        states = df["state"].to_numpy()
+    def batch_train(self, df: pd.DataFrame):
+        current_board = df["current_board"].to_numpy()
         actions = df["action"].to_numpy()
-        next_states = df["next_state"].to_numpy()
-        rewards = df["reward"].to_numpy()
+        next_board = df["next_board"].to_numpy()
 
         with tf.GradientTape() as tape:
-            Q = self.qnet.batch_forward(states).numpy()
-            q = np.array([Q[idx, action]
-                         for idx, action in enumerate(actions)])
-            q = tf.convert_to_tensor(q)
+            Q = self.qnet.batch_forward(current_board)
+            Q = tf.squeeze(Q, axis=1)
+            q = tf.gather_nd(Q, list(enumerate(actions)))
+            q = tf.cast(tf.expand_dims(q, axis=-1), dtype=tf.float64)
             tape.watch(q)
-            next_Q = self.qnet.batch_forward(next_states).numpy()
-            next_actions = np.array(
-                [env.get_actions(next_state, self.color) for next_state in next_states])
-            rewards = np.array(rewards).reshape(-1, 1)
-            next_Q = np.concatenate([next_Q, rewards, next_actions], axis=1)
-            q_target = next_Q.apply_along_axis(
-                self.get_max_Q, axis=1, arr=next_Q, gamma=self.gamma)
-            q_target = tf.convert_to_tensor(q_target)
-            loss = tf.square(tf.subtract(q, q_target))
+
+            next_Q = self.qnet.batch_forward(next_board).numpy()
+            next_Q = np.squeeze(next_Q, axis=1)
+            df_q = pd.DataFrame({'next_Q': [next_q for next_q in next_Q]})
+            df_q["reward"] = df["reward"]
+            df_q["next_actions"] = df["next_actions"]
+
+            q_target = df_q.apply(self.get_max_Q, axis=1)
+            q_target = tf.convert_to_tensor(q_target, dtype=tf.float64)
+            loss = tf.reduce_mean(tf.square(tf.subtract(q, q_target)))
 
         self.qnet.backward(tape, loss)
         return loss.numpy()
 
-    def get_max_Q(row, gamma):
-        next_Q = row[:64]
-        reward = row[65]
-        if len(row) > 65:
-            actions = row[66:]
-            Q = np.max([next_Q[a] for a in actions])
-            return reward + gamma * Q
+    def get_max_Q(self, row):
+        next_Q = row["next_Q"]
+        reward = row["reward"]
+        actions = row["next_actions"]
+        if len(actions) > 0:
+            Q = np.max([next_Q[int(a)] for a in actions])
+            return reward + self.gamma * Q
         else:
             return reward
 
