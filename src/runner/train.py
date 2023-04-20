@@ -54,7 +54,7 @@ class SelfPlayTrainingRunner:
                         rewards.append(reward)
                         next_boards.append(next_state.board)
                         next_action = np.array(env.get_actions(
-                            next_state, self.trainee.color))
+                            next_state, next_state.next_turn))
                         next_actions.append(next_action)
 
                 if len(current_board) == 0 or len(next_boards) == 0:
