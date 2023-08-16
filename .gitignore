@@ -1,3 +1,8 @@
 __pycache__
 py38
 checkpoints
+
+*.ggf
+*.bz2
+
+pipeline/volume/*
