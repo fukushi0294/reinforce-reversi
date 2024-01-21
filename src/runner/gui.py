@@ -114,15 +114,17 @@ class ReversiGUI:
         }
 
         if self.player1.get() == "Human":
+            action = lambda e: self.human_action(e, 1) 
             self.canvas.bind(
-                "<Button-1>", lambda event: self.event_handler(event, None, 1))
+                "<Button-1>", lambda event: self.event_handler(event, action, 1))
         else:
             agent = agent_map[self.player1.get()](player_color=1)
+            action = lambda e: self.agent_action(e, agent)
             self.player1_agent = agent
             self.window.bind("<<Player2TurnOver>>",
-                             lambda event: self.event_handler(event, agent, 1))
+                             lambda event: self.event_handler(event, action, 1))
             self.window.bind(
-                "<<Start>>", lambda event: self.event_handler(event, agent, 1))
+                "<<Start>>", lambda event: self.event_handler(event, action, 1))
 
     def player2_selected(self, event=None):
         agent_map = {
@@ -131,22 +133,20 @@ class ReversiGUI:
         }
         agent = agent_map[self.player2.get()](player_color=-1)
         self.player2_agent = agent
+        action = lambda e: self.agent_action(e, agent)
         self.window.bind("<<Player1TurnOver>>",
-                         lambda event: self.event_handler(event, agent, 2))
+                         lambda event: self.event_handler(event, action, 2))
 
-    def event_handler(self, event, agent, player: int):
+    def event_handler(self, event, player_action, player: int):
         assert player in [1, 2], "player argument should be 1 or 2"
-        if agent is None:
-            done = self.human_action(event, player)
-        else:
-            done = self.agent_action(event, agent)
+        done = player_action(event)
         if done:
             self.window.event_generate("<<Done>>")
         else:
             self.window.after(
                 self.delay, lambda: self.window.event_generate(f"<<Player{player}TurnOver>>"))
 
-    def agent_action(self, event, agent):
+    def agent_action(self, _, agent):
         try:
             action = agent.get_action(self.env, self.state)
             next_state, _, done = self.env.step(
