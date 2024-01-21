@@ -21,6 +21,10 @@ class ReversiGUI:
             1: 'black',
             -1: 'white'
         }
+        self.agent_map = {
+            "Random": RandomAgent,
+            "MonteCarlo": MonteCarloAgent,
+        }
 
         # place my canvas to upper right corner
         self.window = tk.Tk()
@@ -30,7 +34,7 @@ class ReversiGUI:
         self.canvas.pack(side=tk.RIGHT), self.canvas.place(x=20, y=20)
         self.draw_board()
 
-        self.player1_agent = None
+        self.agents = []
         # place text laval next to canvas
         self.player1_label = tk.Label(self.window, text="Player 1")
         self.player1_label.pack(
@@ -40,7 +44,7 @@ class ReversiGUI:
         self.player1 = ttk.Combobox(
             self.window, values=["Human", "Random", "MonteCarlo", "Q-Learning"], state="readonly")
         self.player1.pack(side=tk.RIGHT), self.player1.place(x=600, y=50)
-        self.player1.bind("<<ComboboxSelected>>", self.player1_selected)
+        self.player1.bind("<<ComboboxSelected>>", lambda _: self.bind_player_action(selected=self.player1.get(), player=1))
 
         self.player2_agent = None
         self.player2_label = tk.Label(self.window, text="Player 2")
@@ -48,9 +52,9 @@ class ReversiGUI:
             side=tk.RIGHT), self.player2_label.place(x=600, y=100)
 
         self.player2 = ttk.Combobox(
-            self.window, values=["Random", "MonteCarlo", "Q-Learning"], state="readonly")
+            self.window, values=["Human", "Random", "MonteCarlo", "Q-Learning"], state="readonly")
         self.player2.pack(side=tk.RIGHT), self.player2.place(x=600, y=130)
-        self.player2.bind("<<ComboboxSelected>>", self.player2_selected)
+        self.player2.bind("<<ComboboxSelected>>", lambda _: self.bind_player_action(selected=self.player2.get(), player=2))
 
         self.start_button = tk.Button(
             self.window, text="Start", command=self.start)
@@ -99,46 +103,30 @@ class ReversiGUI:
 
     def reset_game(self, event=None):
         self.state = self.env.reset()
-        if self.player1_agent is not None:
-            self.player1_agent.reset()
-        if self.player2_agent is not None:
-            self.player2_agent.reset()
-
+        for agent in self.agents:
+            agent.reset()
         self.draw_board()
         self.log("Game reset")
 
-    def player1_selected(self, event=None):
-        agent_map = {
-            "Random": RandomAgent,
-            "MonteCarlo": MonteCarloAgent,
-        }
-
-        if self.player1.get() == "Human":
-            action = lambda e: self.human_action(e, 1) 
+    def bind_player_action(self, selected, player):
+        if selected == "Human":
+            action = lambda e: self.human_action(e) 
             self.canvas.bind(
-                "<Button-1>", lambda event: self.event_handler(event, action, 1))
+                "<Button-1>", lambda event: self.event_handler(event, action))
         else:
-            agent = agent_map[self.player1.get()](player_color=1)
+            color = 1 if player == 1 else -1
+            opponent = 2 if player == 1 else 1
+            agent = self.agent_map[selected](player_color=color)
             action = lambda e: self.agent_action(e, agent)
-            self.player1_agent = agent
-            self.window.bind("<<Player2TurnOver>>",
-                             lambda event: self.event_handler(event, action, 1))
-            self.window.bind(
-                "<<Start>>", lambda event: self.event_handler(event, action, 1))
+            self.agents.append(agent)
+            self.window.bind(f"<<Player{opponent}TurnOver>>",
+                                lambda event: self.event_handler(event, action))
+            if player == 1:
+                self.window.bind(
+                    "<<Start>>", lambda event: self.event_handler(event, action))
 
-    def player2_selected(self, event=None):
-        agent_map = {
-            "Random": RandomAgent,
-            "MonteCarlo": MonteCarloAgent,
-        }
-        agent = agent_map[self.player2.get()](player_color=-1)
-        self.player2_agent = agent
-        action = lambda e: self.agent_action(e, agent)
-        self.window.bind("<<Player1TurnOver>>",
-                         lambda event: self.event_handler(event, action, 2))
-
-    def event_handler(self, event, player_action, player: int):
-        assert player in [1, 2], "player argument should be 1 or 2"
+    def event_handler(self, event, player_action):
+        player = 1 if self.state.next_turn == 1 else 2
         done = player_action(event)
         if done:
             self.window.event_generate("<<Done>>")
@@ -182,7 +170,8 @@ class ReversiGUI:
                 self.canvas.create_oval(
                     col*square_size + space, row*square_size + space, (col+1)*square_size - space, (row+1)*square_size-space, fill=v)
 
-    def human_action(self, event, player):
+    def human_action(self, event):
+        player = self.state.next_turn
         square_size = 500 // self.board_size
         # Get the row and column where the user clicked
         col = int(event.x / square_size)
