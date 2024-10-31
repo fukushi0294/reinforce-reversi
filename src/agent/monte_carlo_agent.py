@@ -20,11 +20,12 @@ class Node:
         self.q = 0.0
 
     # evaluate board state with rate of win
-    def select_child(self, c=1.4) -> Node:
+    def select_child(self, c=2.0) -> Node:
         best_score = -float('inf')
         best_child : Node = None
+        t = sum([child.n for child in self.children])
         for child in self.children:
-            score = child.q / child.n + c * np.sqrt(np.log(self.n) / child.n)
+            score = child.q / child.n + np.sqrt(c * np.log(t / child.n))
             if score > best_score:
                 best_score = score
                 best_child = child
