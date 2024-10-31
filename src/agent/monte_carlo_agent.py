@@ -1,8 +1,9 @@
+from __future__ import annotations
 if '__file__' in globals():
     import os
     import sys
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from typing import List
+from typing import Optional, List, Dict
 from env.gameboard import GameBoard
 from agent.simple_agent import SimpleAgent
 from common.state import State
@@ -13,15 +14,15 @@ import numpy as np
 class Node:
     def __init__(self, state: State, parent=None):
         self.state: State = state
-        self.parent: Node = parent
+        self.parent: Optional[Node] = parent
         self.children: List[Node] = []
         self.n = 0
         self.q = 0.0
 
     # evaluate board state with rate of win
-    def select_child(self, c=1.4):
+    def select_child(self, c=1.4) -> Node:
         best_score = -float('inf')
-        best_child = None
+        best_child : Node = None
         for child in self.children:
             score = child.q / child.n + c * np.sqrt(np.log(self.n) / child.n)
             if score > best_score:
@@ -29,14 +30,14 @@ class Node:
                 best_child = child
         return best_child
 
-    def greedy_probs(self, epsilon: float):
+    def greedy_probs(self, epsilon: float) -> Dict[Node, float]:
         best_child = self.select_child()
         base_prob = epsilon / len(self.children)
         select_probs = {action: base_prob for action in self.children}
         select_probs[best_child] += (1 - epsilon)
         return select_probs
 
-    def rollout(self, env: GameBoard, epsilon: float):
+    def rollout(self, env: GameBoard, epsilon: float) -> Node:
         edge = self
         # go down to edge when children node is all searched
         while len(edge.children) > 0 and all(x.n != 0 for x in edge.children):
@@ -77,7 +78,7 @@ class MCTS:
         self.root = Node(state)
         self.player_color = color
         self.epsilon = 0.1
-        self.episode = 4000
+        self.episode = 8000
 
     def simulate(self):
         for _ in range(self.episode):
@@ -95,9 +96,8 @@ class MCTS:
         for child in self.root.children:
             if child.state.memory[-1] == last_action:
                 current_node = child
-        if current_node is None:
-            print("illegal state")
         self.root = current_node
+        self.root.parent = None # free memory
 
 
 class MonteCarloAgent(SimpleAgent):
